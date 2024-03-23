@@ -515,6 +515,18 @@ void mlfq_deque(int level, struct proc *proc) {
   }
 }
 
+int isMLFQQueueEmpty() {
+  for(int i = 0; i < mlfqNumLevels; i++) {
+    struct MLFQQueueLevel *queue = &mlfqQueues[i];
+
+    if(queue->head != 0) {
+      return 0;
+    }
+  }
+
+  return 1;
+}
+
 void MLFQ_scheduler(struct cpu *c) {
   struct proc *p = 0;
 
@@ -576,17 +588,24 @@ void MLFQ_scheduler(struct cpu *c) {
         struct MLFQQueueLevel *queue = &mlfqQueues[i];
         struct MLFQNode *node = queue->head;
 
+        int found = 0;
+
         if(node == 0) {
           continue;
         }
 
         while(node != 0) {
           if(node->p->state == RUNNABLE) {
+            found = 1;
             p = node->p;
             break;
           }
 
           node = node->next;
+        }
+
+        if(found == 1) {
+          break;
         }
       }
     }
@@ -597,6 +616,7 @@ void MLFQ_scheduler(struct cpu *c) {
       c->proc = p;
       swtch(&c->context, &p->context);
       c->proc = 0;
+
       release(&p->lock);
     }
   }
@@ -633,6 +653,7 @@ void RR_scheduler(struct cpu *c) {
 void
 scheduler(void)
 {
+  // Ensuring MLFQ queues are zeroed out on boot.
   memset(mlfqQueues, 0, sizeof(mlfqQueues));
   struct cpu *c = mycpu();
   
