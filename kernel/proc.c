@@ -458,19 +458,23 @@ int mlfqNumLevels = 1;
 // Determines the maximum number of ticks a process can run at the bottom level of the MLFQ scheduler (level m-1), as required by Project 1C.
 int mlfqMaxTicks = 1;
 
+// A node in the MLFQ scheduler queue.
 struct MLFQNode {
   struct proc *p;
   struct MLFQNode *prev;
   struct MLFQNode *next;
 };
 
+// A single priority level in the MLFQ scheduler queue.
 struct MLFQQueueLevel {
   struct MLFQNode *head;
   struct MLFQNode *tail;
 };
 
+// The MLFQ queue.
 struct MLFQQueueLevel mlfqQueues[MLFQ_MAX_LEVEL];
 
+// Used to enqueue a process `proc` in the MLFQ scheduler on level `level`.
 void mlfq_enque(int level, struct proc *proc) {
   proc->mlfqInfo.priorityLevel = level;
   struct MLFQNode *node = (struct MLFQNode *) kalloc();
@@ -489,6 +493,7 @@ void mlfq_enque(int level, struct proc *proc) {
   }
 }
 
+// Used to dequeue a process `proc` in the MLFQ scheduler on level `level`.
 void mlfq_deque(int level, struct proc *proc) {
   struct MLFQQueueLevel *queue = &mlfqQueues[level];
   struct MLFQNode *node = queue->head;
@@ -515,85 +520,114 @@ void mlfq_deque(int level, struct proc *proc) {
   }
 }
 
-int isMLFQQueueEmpty() {
-  for(int i = 0; i < mlfqNumLevels; i++) {
-    struct MLFQQueueLevel *queue = &mlfqQueues[i];
-
-    if(queue->head != 0) {
-      return 0;
-    }
-  }
-
-  return 1;
-}
-
 void MLFQ_scheduler(struct cpu *c) {
   struct proc *p = 0;
 
+  // Checking if the MLFQ scheduler is enabled.
+  // Note, the MLFQ scheduler will continuously run until it's disabled.
   while(mlfqSchedulerEnabled) {
+    // Ensuring a chosen process, if one exists, is runnable or already running.
     if(p > 0 && (p->state == RUNNABLE || p->state == RUNNING)) {
       struct MLFQProcInfo* info = &p->mlfqInfo;
 
+      // Increment the number of ticks the process has run at its current level.
       info->ticksAtCurrentLevel++;
+
+      // Storing the number of ticks the process has run at its current level in the report.
       info->report.tickCounts[info->priorityLevel] = info->ticksAtCurrentLevel;
 
+      // If we've exceeded our time slice, the process should be moved to the next level.
       if(info->ticksAtCurrentLevel >= 2 * (info->priorityLevel + 1)) {
+        // If we aren't at the max level already, increment the process.
         if(info->priorityLevel < mlfqNumLevels - 1) {
+          // Dequeue from current level.
           mlfq_deque(info->priorityLevel, p);
+
+          // Increment level.
           info->priorityLevel++;
+
+          // Set ticks at current level to 0 (as it changed).
           info->ticksAtCurrentLevel = 0;
+
+          // Enqueue the process at the new level.
           mlfq_enque(info->priorityLevel, p);
         }
 
+        // Relinquish runtime to the next queued process.
         p = 0;
       }
     }
 
+    // Implementation of Rule 5.
+    // Find a pointer to the bottom level (m-1).
     struct MLFQQueueLevel *bottomLevel = &mlfqQueues[mlfqNumLevels - 1];
 
+    // Check if there are any processes in the bottom level.
     if(bottomLevel->head != 0) {
+      // Retrieve the first node and process in the bottom level.
       struct MLFQNode *node = bottomLevel->head;
       struct proc *bottomproc = node->p;
       
+      // Loop over all the processes in the bottom level.
       while(node != 0) {
+        // Increment ticks at the max level.
         bottomproc->mlfqInfo.ticksAtMaxLevel++;
 
+        // If we've received the maximum amount of ticks, n, we perform a priority boost.
         if(bottomproc->mlfqInfo.ticksAtMaxLevel >= mlfqMaxTicks) {
+          // Dequeue the process from the bottom level.
           mlfq_deque(bottomproc->mlfqInfo.priorityLevel, bottomproc);
+
+          // Reset the ticks at the max level, current level, and priority level.
           bottomproc->mlfqInfo.ticksAtMaxLevel = 0;
           bottomproc->mlfqInfo.ticksAtCurrentLevel = 0;
           bottomproc->mlfqInfo.priorityLevel = 0;
+
+          // Enqueue the process at the top level.
           mlfq_enque(0, bottomproc);
         }
 
+        // Point node to the next node containing the next queued process.
         node = node->next;
       }
     }
 
+    // Check for any processes that haven't been queued by the MLFQ scheduelr as of yet.
     for(int i = 0; i < NPROC; i++) {
       struct proc *queueableProc = &proc[i];
 
+      // If the process at index i doesn't exist, continue to loop.
       if(queueableProc == 0) {
         continue;
       }
 
+      // If the process at i is RUNNABLE and hasn't been queued prior, we queue it!
       if(queueableProc->state == RUNNABLE && queueableProc->mlfqInfo.queued == 0) {
+        // Queueing the process.
         queueableProc->mlfqInfo.queued = 1;
         mlfq_enque(0, queueableProc);
       }
     }
 
+    // If we don't currently have a selected process, we need to find one to schedule.
     if(p == 0) {
+      // Starting at level 0, the highest level, we will work to level m-1, the bottom level.
       for(int i = 0; i < mlfqNumLevels; i++) {
+        // Get a pointer to queue level i.
         struct MLFQQueueLevel *queue = &mlfqQueues[i];
         struct MLFQNode *node = queue->head;
 
         int found = 0;
 
+        // If there's no head, there are no processes at this level.
+        // Hence, we continue to the next level i+1.
         if(node == 0) {
           continue;
         }
 
+        // We perform round robin scheduling at each level.
+        // We do so by iterating through the queue at level i.
+        // As soon as we find a runnable process, we break and schedule it, allocating a time quantum of 2(i + 1) ticks.
         while(node != 0) {
           if(node->p->state == RUNNABLE) {
             found = 1;
@@ -601,22 +635,24 @@ void MLFQ_scheduler(struct cpu *c) {
             break;
           }
 
+          // Iterating to the next node in case the process isn't runnable in the current node.
           node = node->next;
         }
 
+        // We found a process. No need to keep iterating over levels.
         if(found == 1) {
           break;
         }
       }
     }
 
+    // If the scheduler found or already had a process we'd like to schedule, do so like normal!
     if(p > 0) {
       acquire(&p->lock);
       p->state = RUNNING;
       c->proc = p;
       swtch(&c->context, &p->context);
       c->proc = 0;
-
       release(&p->lock);
     }
   }
