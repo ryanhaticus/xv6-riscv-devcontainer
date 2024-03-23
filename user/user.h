@@ -1,3 +1,6 @@
+// Including the MLFQInfoReport structure from `mlfq.h`, as required by Project 1C.
+#include "../kernel/mlfq.h"
+
 struct stat;
 
 // system calls
@@ -22,6 +25,13 @@ int getpid(void);
 char* sbrk(int);
 int sleep(int);
 int uptime(void);
+
+// Added system call declarations for Project 1C.
+int startMLFQ(int m, int n);
+int stopMLFQ(void);
+
+// Added system call declaration for Project 1C, utilizing the structure in `mlfq.h`.
+int getMLFQInfo(struct MLFQInfoReport *report);
 
 // ulib.c
 int stat(const char*, struct stat*);

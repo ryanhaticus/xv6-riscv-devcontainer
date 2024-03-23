@@ -20,3 +20,7 @@
 #define SYS_link   19
 #define SYS_mkdir  20
 #define SYS_close  21
+// Adding required system call numbers for Project 1C.
+#define SYS_startMLFQ 22
+#define SYS_stopMLFQ 23
+#define SYS_getMLFQInfo 24

@@ -37,6 +37,7 @@ exec(char *path, char **argv)
     end_op();
     return -1;
   }
+
   ilock(ip);
 
   // Check ELF header

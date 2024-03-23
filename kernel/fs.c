@@ -680,6 +680,7 @@ namex(char *path, int nameiparent, char *name)
     iput(ip);
     return 0;
   }
+
   return ip;
 }
 

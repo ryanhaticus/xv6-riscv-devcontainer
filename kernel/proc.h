@@ -81,6 +81,9 @@ struct trapframe {
 
 enum procstate { UNUSED, USED, SLEEPING, RUNNABLE, RUNNING, ZOMBIE };
 
+// Including the MLFQProcInfo structure from `mlfq.h`, as required by Project 1C.
+#include "mlfq.h"
+
 // Per-process state
 struct proc {
   struct spinlock lock;
@@ -104,4 +107,9 @@ struct proc {
   struct file *ofile[NOFILE];  // Open files
   struct inode *cwd;           // Current directory
   char name[16];               // Process name (debugging)
+
+  // Adding the MLFQProcInfo structure from `mlfq.h`, as required by Project 1C.
+  // This structure is used to store MLFQ-specific information for each process.
+  // The information will be used by the scheduler to determine scheduling priority.
+  struct MLFQProcInfo mlfqInfo; // MLFQ-specific information.
 };

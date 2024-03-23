@@ -6,6 +6,9 @@
 #include "proc.h"
 #include "defs.h"
 
+// Including the MLFQProcInfo structure from `mlfq.h`, as required by Project 1C.
+#include "mlfq.h"
+
 struct cpu cpus[NCPU];
 
 struct proc proc[NPROC];
@@ -146,6 +149,9 @@ found:
   p->context.ra = (uint64)forkret;
   p->context.sp = p->kstack + PGSIZE;
 
+  // Setting up mlfqInfo field, as required by Project 1C.
+  memset(&p->mlfqInfo, 0, sizeof(struct MLFQProcInfo));
+
   return p;
 }
 
@@ -169,6 +175,15 @@ freeproc(struct proc *p)
   p->killed = 0;
   p->xstate = 0;
   p->state = UNUSED;
+
+  // Freeing up variables added to track MLFQ Scheduling, as required by Project 1C.
+  for(int i = 0; i < MLFQ_MAX_LEVEL; i++) {
+    p->mlfqInfo.report.tickCounts[i] = 0;
+  }
+  p->mlfqInfo.queued = 0;
+  p->mlfqInfo.priorityLevel = 0;
+  p->mlfqInfo.ticksAtMaxLevel = 0;
+  p->mlfqInfo.ticksAtCurrentLevel = 0;
 }
 
 // Create a user page table for a given process, with no user memory,
@@ -434,6 +449,180 @@ wait(uint64 addr)
   }
 }
 
+// Determines whether the MLFQ scheduler should be ran (1) over the Round Robin scheduler (0), as required by Project 1C.
+int mlfqSchedulerEnabled = 0;
+
+// Determines the number of levels in the MLFQ scheduler, as required by Project 1C.
+int mlfqNumLevels = 1;
+
+// Determines the maximum number of ticks a process can run at the bottom level of the MLFQ scheduler (level m-1), as required by Project 1C.
+int mlfqMaxTicks = 1;
+
+struct MLFQNode {
+  struct proc *p;
+  struct MLFQNode *prev;
+  struct MLFQNode *next;
+};
+
+struct MLFQQueueLevel {
+  struct MLFQNode *head;
+  struct MLFQNode *tail;
+};
+
+struct MLFQQueueLevel mlfqQueues[MLFQ_MAX_LEVEL];
+
+void mlfq_enque(int level, struct proc *proc) {
+  proc->mlfqInfo.priorityLevel = level;
+  struct MLFQNode *node = (struct MLFQNode *) kalloc();
+  node->p = proc;
+  node->prev = 0;
+  node->next = 0;
+
+  struct MLFQQueueLevel *queue = &mlfqQueues[level];
+  if(queue->head == 0) {
+    queue->head = node;
+    queue->tail = node;
+  } else {
+    queue->tail->next = node;
+    node->prev = queue->tail;
+    queue->tail = node;
+  }
+}
+
+void mlfq_deque(int level, struct proc *proc) {
+  struct MLFQQueueLevel *queue = &mlfqQueues[level];
+  struct MLFQNode *node = queue->head;
+
+  while(node != 0) {
+    if(node->p == proc) {
+      if(node->prev != 0) {
+        node->prev->next = node->next;
+      } else {
+        queue->head = node->next;
+      }
+
+      if(node->next != 0) {
+        node->next->prev = node->prev;
+      } else {
+        queue->tail = node->prev;
+      }
+
+      kfree((void *) node);
+      return;
+    }
+
+    node = node->next;
+  }
+}
+
+void MLFQ_scheduler(struct cpu *c) {
+  struct proc *p = 0;
+
+  while(mlfqSchedulerEnabled) {
+    if(p > 0 && (p->state == RUNNABLE || p->state == RUNNING)) {
+      struct MLFQProcInfo* info = &p->mlfqInfo;
+
+      info->ticksAtCurrentLevel++;
+      info->report.tickCounts[info->priorityLevel] = info->ticksAtCurrentLevel;
+
+      if(info->ticksAtCurrentLevel >= 2 * (info->priorityLevel + 1)) {
+        if(info->priorityLevel < mlfqNumLevels - 1) {
+          mlfq_deque(info->priorityLevel, p);
+          info->priorityLevel++;
+          info->ticksAtCurrentLevel = 0;
+          mlfq_enque(info->priorityLevel, p);
+        }
+
+        p = 0;
+      }
+    }
+
+    struct MLFQQueueLevel *bottomLevel = &mlfqQueues[mlfqNumLevels - 1];
+
+    if(bottomLevel->head != 0) {
+      struct MLFQNode *node = bottomLevel->head;
+      struct proc *bottomproc = node->p;
+      
+      while(node != 0) {
+        bottomproc->mlfqInfo.ticksAtMaxLevel++;
+
+        if(bottomproc->mlfqInfo.ticksAtMaxLevel >= mlfqMaxTicks) {
+          mlfq_deque(bottomproc->mlfqInfo.priorityLevel, bottomproc);
+          bottomproc->mlfqInfo.ticksAtMaxLevel = 0;
+          bottomproc->mlfqInfo.ticksAtCurrentLevel = 0;
+          bottomproc->mlfqInfo.priorityLevel = 0;
+          mlfq_enque(0, bottomproc);
+        }
+
+        node = node->next;
+      }
+    }
+
+    for(int i = 0; i < NPROC; i++) {
+      struct proc *queueableProc = &proc[i];
+
+      if(queueableProc == 0) {
+        continue;
+      }
+
+      if(queueableProc->state == RUNNABLE && queueableProc->mlfqInfo.queued == 0) {
+        queueableProc->mlfqInfo.queued = 1;
+        mlfq_enque(0, queueableProc);
+      }
+    }
+
+    if(p == 0) {
+      for(int i = 0; i < mlfqNumLevels; i++) {
+        struct MLFQQueueLevel *queue = &mlfqQueues[i];
+        struct MLFQNode *node = queue->head;
+
+        if(node == 0) {
+          continue;
+        }
+
+        while(node != 0) {
+          if(node->p->state == RUNNABLE) {
+            p = node->p;
+            break;
+          }
+
+          node = node->next;
+        }
+      }
+    }
+
+    if(p > 0) {
+      acquire(&p->lock);
+      p->state = RUNNING;
+      c->proc = p;
+      swtch(&c->context, &p->context);
+      c->proc = 0;
+      release(&p->lock);
+    }
+  }
+}
+
+// Implements the Round Robin scheduler, as provided and required by Project 1C.
+void RR_scheduler(struct cpu *c) {
+  struct proc *p;
+
+  for(p = proc; p < &proc[NPROC]; p++) {
+    acquire(&p->lock);
+    if(p->state == RUNNABLE) {
+      // Switch to chosen process. It is the process's job
+      // to release its lock and then reacquire it
+      // before jumping back to us.
+      p->state = RUNNING;
+      c->proc = p;
+      swtch(&c->context, &p->context);
+      // Process is done running for now.
+      // It should have changed its p->state before coming back.
+      c->proc = 0;
+    }
+    release(&p->lock);
+  }
+}
+
 // Per-CPU process scheduler.
 // Each CPU calls scheduler() after setting itself up.
 // Scheduler never returns.  It loops, doing:
@@ -444,7 +633,7 @@ wait(uint64 addr)
 void
 scheduler(void)
 {
-  struct proc *p;
+  memset(mlfqQueues, 0, sizeof(mlfqQueues));
   struct cpu *c = mycpu();
   
   c->proc = 0;
@@ -452,21 +641,10 @@ scheduler(void)
     // Avoid deadlock by ensuring that devices can interrupt.
     intr_on();
 
-    for(p = proc; p < &proc[NPROC]; p++) {
-      acquire(&p->lock);
-      if(p->state == RUNNABLE) {
-        // Switch to chosen process.  It is the process's job
-        // to release its lock and then reacquire it
-        // before jumping back to us.
-        p->state = RUNNING;
-        c->proc = p;
-        swtch(&c->context, &p->context);
-
-        // Process is done running for now.
-        // It should have changed its p->state before coming back.
-        c->proc = 0;
-      }
-      release(&p->lock);
+    if(mlfqSchedulerEnabled) {
+      MLFQ_scheduler(c);
+    } else {
+      RR_scheduler(c);
     }
   }
 }
