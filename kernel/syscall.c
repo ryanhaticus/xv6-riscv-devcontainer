@@ -101,10 +101,6 @@ extern uint64 sys_unlink(void);
 extern uint64 sys_link(void);
 extern uint64 sys_mkdir(void);
 extern uint64 sys_close(void);
-// Adding function declarations for new system calls as required by Project 1C.
-extern uint64 sys_startMLFQ(void);
-extern uint64 sys_stopMLFQ(void);
-extern uint64 sys_getMLFQInfo(void);
 
 // An array mapping syscall numbers from syscall.h
 // to the function that handles the system call.
@@ -130,10 +126,6 @@ static uint64 (*syscalls[])(void) = {
 [SYS_link]    sys_link,
 [SYS_mkdir]   sys_mkdir,
 [SYS_close]   sys_close,
-// Mapping system call numbers to their respective function declarations, as required by Project 1C.
-[SYS_startMLFQ] sys_startMLFQ,
-[SYS_stopMLFQ] sys_stopMLFQ,
-[SYS_getMLFQInfo] sys_getMLFQInfo,
 };
 
 void

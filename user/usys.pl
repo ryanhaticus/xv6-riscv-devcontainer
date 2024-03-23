@@ -36,7 +36,3 @@ entry("getpid");
 entry("sbrk");
 entry("sleep");
 entry("uptime");
-# Telling Perl to build my system call stubs, as required by Project 1C.
-entry("startMLFQ");
-entry("stopMLFQ");
-entry("getMLFQInfo");

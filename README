@@ -1,35 +1,30 @@
-# COM S 352 - Project 1C
-## Ryan Huellen
+This is a modified distribution of the Xv6 RISC-V operating system written by Ryan Huellen. The packaged software itself remains untouched, however contained within this repository (in `.devcontainer/`) are the files necessary for building and running the operating system in a Docker container.
 
-### Description
-This project ecompasses a simple implementation of a Multi-Level Feedback Queue (MLFQ) scheduler written in C for the Xv6 operating system. This scheduler can be enabled or disabled via. system calls on-demand and will switch off with a Round Robin scheduler. The code found here was completed for COM S 352 at Iowa State University in the Spring of 2024.
+Though this distribution was originally created for student use at Iowa State University, others are welcome to freely use, modify, and redistribute the contained software. In the spirit of open-source and the authors of this operating system, the original license listed below (and in `LICENSE`) will apply to this release as well.
 
-### MLFQ Scheduler
-The MLFQ scheduler uses five distinct rules to govern its behavior:
-1. For m priority levels, 0 through m-1, a process with a smaller scheduling priority level will be executed before a process with a larger scheduling priority level.
-2. When a process is created, it is placed at the highest priority level (level 0).
-3. Upon scheduling a process to run, the scheduler should pick the process with the smallest priority level. Should two processes be at the same priority level, the scheduler should use Round Robin scheduling for processes on that priority level with a time quantum of 2(level + 1) ticks.
-4. Once a process is scheduled, the priority of the process is demoted from level i to level i+1 (the priority level is incremented).
-5. Should a process reach the maximum priority level of m-1 and hasn't been scheduled for n ticks (the maximum number of ticks a process can stay at level m-1), its priority level should be reset (boosted) to 0.
+---
 
-### Files Modified
-- Changed the \# of CPUs in `Makefile` to 1.
-- Created this `README` file to serve as documentation for Project 1C.
-- Added system call numbers to `syscall.h` for system calls `startMLFQ(int m, int n)`, `stopMLFQ()`, and `getMLFQInfo()`.
-- Added the `testsyscall.c` user program from Project 1C to test the new system calls.
-- Added `testsyscall` to the list of user programs in `Makefile`.
-- Added system call declarations to `syscall.c` for system calls `startMLFQ(int m, int n)`, `stopMLFQ()`, and `getMLFQInfo()`.
-- Mapped system call numbers to function declarations in `syscall.c`.
-- Created an `mlfq.h` under the `kernel` directory to define structures related to MLFQ and per process MLFQ information.
-- Added MLFQInfoReport structure definition to `mlfq.h`.
-- Added MLFQProcInfo structure to `mlfq.h`, for use inside the process PCB.
-- Inserted a MLFQProcInfo structure field in the proc structure in `proc.h`. This field will hold the MLFQ information for each process and then will be used by the scheduler to make scheduling decisions.
-- Added system call function declarations (with parameters) to `user.h`.
-- Initialized an `mlfqSchedulerEnabled` variable in `proc.c` to keep track of whether the MLFQ scheduler is enabled or not. This variable will be retrieved in `sysproc.c` via. an extern declaration.
-- Initialized the `sys_startMLFQ()` system call in `sysproc.c` to set `mlfqSchedulerEnabled` to 1 (enabled).
-- Initialized the `sys_stopMLFQ()` system call in `sysproc.c` to set `mlfqSchedulerEnabled` to 0 (disabled).
-- Initialized the `sys_getMLFQInfo()` system call in `sysproc.c` to retrieve the MLFQInfoReport structure from the currently running process.
-- Added stub entries to `usys.pl` for the new system calls. This way, the byte code will be built appropriately.
-- Setting the `mlfqInfo` field (containing the MLFQProcInfo structure) in the proc structure to 0s in `allocproc` in `proc.c`.
-- Freeing the MLFQProcInfo structure in `freeproc` in `proc.c`.
-- Initialized `mlfqNumLevels` and `mlfqMaxTicks` in `proc.c` to hold the number of levels and maximum ticks a process can stay at level m-1, respectively. These values will be retrieved and modified by system calls defined in `sysproc.c` via. extern declarations.
+The xv6 software is:
+
+Copyright (c) 2006-2019 Frans Kaashoek, Robert Morris, Russ Cox,
+                        Massachusetts Institute of Technology
+
+Permission is hereby granted, free of charge, to any person obtaining
+a copy of this software and associated documentation files (the
+"Software"), to deal in the Software without restriction, including
+without limitation the rights to use, copy, modify, merge, publish,
+distribute, sublicense, and/or sell copies of the Software, and to
+permit persons to whom the Software is furnished to do so, subject to
+the following conditions:
+
+The above copyright notice and this permission notice shall be
+included in all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE
+LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
+WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+

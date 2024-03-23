@@ -6,9 +6,6 @@
 #include "spinlock.h"
 #include "proc.h"
 
-// Including the MLFQProcInfo structure from `mlfq.h`, as required by Project 1C.
-#include "mlfq.h"
-
 uint64
 sys_exit(void)
 {
@@ -91,73 +88,4 @@ sys_uptime(void)
   xticks = ticks;
   release(&tickslock);
   return xticks;
-}
-
-// Determines whether the MLFQ scheduler should be ran (1) over the Round Robin scheduler (0), as required by Project 1C.
-// External declaration. The initialization falls in `proc.c` of the kernel.
-extern int mlfqSchedulerEnabled;
-
-// Determines the number of levels in the MLFQ scheduler, as required by Project 1C.
-// External declaration. The initialization falls in `proc.c` of the kernel.
-extern int mlfqNumLevels;
-
-// Determines the maximum number of ticks a process can run at the bottom level of the MLFQ scheduler (level m-1), as required by Project 1C.
-// External declaration. The initialization falls in `proc.c` of the kernel.
-extern int mlfqMaxTicks;
-
-// Enables the MLFQ scheduler, as required by Project 1C.
-uint64 sys_startMLFQ(void) {
-  if(mlfqSchedulerEnabled == 1) {
-    return -1;
-  }
-
-  int numLevel;
-  argint(0, &numLevel);
-
-  if(numLevel < 1) {
-    return -1;
-  }
-
-  int maxTicks;
-  argint(1, &maxTicks);
-
-  if(maxTicks < 1) {
-    return -1;
-  }
-
-  mlfqSchedulerEnabled = 1;
-  mlfqNumLevels = numLevel;
-  mlfqMaxTicks = maxTicks;
-  return 0;
-}
-
-// Disables the MLFQ scheduler, as required by Project 1C.
-uint64 sys_stopMLFQ(void) {
-  if(mlfqSchedulerEnabled == 0) {
-    return -1;
-  }
-
-  mlfqSchedulerEnabled = 0;
-  return 0;
-}
-
-// This function is used to get the MLFQ information of the current process.
-// Implemented as required by Project 1C.
-uint64 sys_getMLFQInfo(void) {
-  uint64 arg_addr;
-
-  argaddr(0, &arg_addr);
-
-  struct proc *p = myproc();
-
-  if(copyout(
-    p->pagetable,
-    arg_addr,
-    (char *)&(p->mlfqInfo.report),
-    sizeof(struct MLFQInfoReport)
-  ) < 0) {
-    return -1;
-  }
-
-  return 0;
 }
