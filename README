@@ -10,7 +10,7 @@ The MLFQ scheduler uses five distinct rules to govern its behavior:
 2. When a process is created, it is placed at the highest priority level (level 0).
 3. Upon scheduling a process to run, the scheduler should pick the process with the smallest priority level. Should two processes be at the same priority level, the scheduler should use Round Robin scheduling for processes on that priority level with a time quantum of 2(level + 1) ticks.
 4. Once a process is scheduled, the priority of the process is demoted from level i to level i+1 (the priority level is incremented).
-5. Should a process reach the maximum priority level of m-1 and hasn't been scheduled for n ticks (the maximum number of ticks a process can stay at level m-1), its priority level should be reset (boosted) to 0.
+5. Should a process reach the maximum priority level of m-1 and hasn't been scheduled for n ticks (the maximum number of ticks a process can stay at level m-1), its priority level should be reset (boosted) to 0. **This project implements Rule 5.**
 
 ### Files Modified
 - Changed the \# of CPUs in `Makefile` to 1.
@@ -33,3 +33,11 @@ The MLFQ scheduler uses five distinct rules to govern its behavior:
 - Setting the `mlfqInfo` field (containing the MLFQProcInfo structure) in the proc structure to 0s in `allocproc` in `proc.c`.
 - Freeing the MLFQProcInfo structure in `freeproc` in `proc.c`.
 - Initialized `mlfqNumLevels` and `mlfqMaxTicks` in `proc.c` to hold the number of levels and maximum ticks a process can stay at level m-1, respectively. These values will be retrieved and modified by system calls defined in `sysproc.c` via. extern declarations.
+- Added two structures to `proc.c`: MLFQNode and MLFQQueueLevel. The MLFQNode will hold pointers to the previous node, next node, and a process. The MLFQQueueLevel will hold the head and tail of a queue level.
+- Defined a `mlfqQueues[MLFQ_MAX_LEVEL]` array of MLFQQueueLevel structures in `proc.c`. This array will hold the queues for each level. We will only use queues 0 through m-1.
+- Added logic in `scheduler` in `proc.c` to initialize `mlfqQueues[MLFQ_MAX_LEVEL]` to 0s.
+- Implemented an `mlfq_enque` function in `proc.c` to enqueue a process `proc` into the MLFQ scheduler on a priority level `level`.
+- Implemented an `mlfq_dequeue` function in `proc.c` to dequeue a process `proc` from the MLFQ scheduler on a priority level `level`.
+- Implemented the `MLFQ_scheduler` function in `proc.c` to schedule a process to run based on the MLFQ scheduler rules defined above. We implement all rules 1-5. Please see `proc.c` for specific comments regarding the implementation of each rule.
+- Implemented the `RR_scheduler`, as required by the project.
+- Modified the `scheduler` function in `proc.c` to call `MLFQ_scheduler` if the MLFQ scheduler is enabled, and `RR_scheduler` otherwise.

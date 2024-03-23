@@ -476,7 +476,6 @@ struct MLFQQueueLevel mlfqQueues[MLFQ_MAX_LEVEL];
 
 // Used to enqueue a process `proc` in the MLFQ scheduler on level `level`.
 void mlfq_enque(int level, struct proc *proc) {
-  proc->mlfqInfo.priorityLevel = level;
   struct MLFQNode *node = (struct MLFQNode *) kalloc();
   node->p = proc;
   node->prev = 0;
@@ -617,8 +616,6 @@ void MLFQ_scheduler(struct cpu *c) {
         struct MLFQQueueLevel *queue = &mlfqQueues[i];
         struct MLFQNode *node = queue->head;
 
-        int found = 0;
-
         // If there's no head, there are no processes at this level.
         // Hence, we continue to the next level i+1.
         if(node == 0) {
@@ -627,26 +624,23 @@ void MLFQ_scheduler(struct cpu *c) {
 
         // We perform round robin scheduling at each level.
         // We do so by iterating through the queue at level i.
-        // As soon as we find a runnable process, we break and schedule it, allocating a time quantum of 2(i + 1) ticks.
         while(node != 0) {
           if(node->p->state == RUNNABLE) {
-            found = 1;
             p = node->p;
-            break;
+            
+            // As soon as we find a runnable process, we break and schedule it, allocating a time quantum of 2(i + 1) ticks.
+            goto scheduled;
           }
+
 
           // Iterating to the next node in case the process isn't runnable in the current node.
           node = node->next;
-        }
-
-        // We found a process. No need to keep iterating over levels.
-        if(found == 1) {
-          break;
         }
       }
     }
 
     // If the scheduler found or already had a process we'd like to schedule, do so like normal!
+    scheduled:
     if(p > 0) {
       acquire(&p->lock);
       p->state = RUNNING;
